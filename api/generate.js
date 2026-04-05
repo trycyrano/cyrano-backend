@@ -59,13 +59,11 @@ export default async function handler(req, res) {
 ${voiceExamples}`
     : `No voice profile set — write in a natural, modern texting style.`;
 
-  const conversationContext = `IMPORTANT — reading a dating app screenshot:
-The OCR text below comes from a dating app chat. Both sides of the conversation are mixed together since OCR reads left-to-right/top-to-bottom without knowing who sent each message.
-- Messages on the RIGHT side of the screen = sent by the USER (the person you're helping)
-- Messages on the LEFT side = sent by their MATCH
-- The LAST message in the conversation is what the user needs to reply TO — it was sent by their match
-- Do NOT generate a reply to the user's own messages
-- Focus entirely on the most recent message from the match and reply to that`;
+  const conversationContext = `IMPORTANT — reading a dating app conversation:
+Each message is prefixed with who sent it:
+- [YOU] = sent by the user (the person you're helping) — do NOT reply to these
+- [THEM] = sent by their match — this is who you're writing a reply to
+The last [THEM] message is what you must reply to. Ignore all [YOU] messages.`;
 
   const prompt = isAskOut
     ? `You are a dating coach helping someone move a conversation toward meeting in person.
