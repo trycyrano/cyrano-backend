@@ -93,16 +93,6 @@ Output rules:
 - Each tone must be genuinely distinct — no repeating approaches
 - Mirror the user's voice exactly from their voice profile`;
 
-  const fewShotReply = isAskOut ? `[
-  { "reply": "okay but real talk we should actually grab that drink instead of just talking about it lol", "tip": "Turns the abstract into concrete without being intense.", "tone": "Subtle" },
-  { "reply": "alright I'm calling it — we're doing drinks this week, pick a night", "tip": "Takes the lead confidently, gives them choice of timing.", "tone": "Balanced" },
-  { "reply": "give me your number, this convo is too good to stay on here", "tip": "Direct and flattering — frames the move as a compliment.", "tone": "Direct" }
-]` : `[
-  { "reply": "okay that's actually really attractive ngl 👀", "tip": "Short, punchy, leaves them wanting more.", "tone": "Flirty" },
-  { "reply": "wait what made you get into that? I feel like there's a story there", "tip": "Shows genuine interest and opens them up.", "tone": "Curious" },
-  { "reply": "okay so you're saying you're basically a professional chaos gremlin got it", "tip": "Playful reframe that shows you were paying attention.", "tone": "Funny" }
-]`;
-
   const userMessage = `${voiceSection}
 
 Conversation OCR text:
@@ -111,10 +101,7 @@ ${ocrText}
 ${isAskOut
   ? `Generate exactly 3 messages that naturally move toward meeting IRL or exchanging numbers. Range from subtle to direct. Mirror the user's voice precisely.
 
-Example of perfect output:
-${fewShotReply}
-
-Now generate for this conversation. Return ONLY a JSON array:
+Return ONLY a JSON array:
 [
   { "reply": "...", "tip": "...", "tone": "Subtle" },
   { "reply": "...", "tip": "...", "tone": "Balanced" },
@@ -122,10 +109,7 @@ Now generate for this conversation. Return ONLY a JSON array:
 ]`
   : `Generate exactly 3 reply suggestions — Flirty, Curious, Funny — each with a genuinely different approach. Mirror the user's voice precisely. 1-2 sentences max per reply.
 
-Example of perfect output:
-${fewShotReply}
-
-Now generate for this conversation. Return ONLY a JSON array:
+Return ONLY a JSON array:
 [
   { "reply": "...", "tip": "...", "tone": "Flirty" },
   { "reply": "...", "tip": "...", "tone": "Curious" },
@@ -136,7 +120,7 @@ Now generate for this conversation. Return ONLY a JSON array:
   try {
     message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 600,
       temperature: 0.9,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
