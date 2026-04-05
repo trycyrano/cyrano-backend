@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-// Edge Runtime — zero cold starts, global low latency
 export const config = { runtime: "edge" };
 
 function buildVoiceProfile(rawMessages) {
@@ -16,11 +15,55 @@ function buildVoiceProfile(rawMessages) {
   return `Voice: ~${avgLen} chars, ${emojiFreq}, ${punctuation}, ${lowercase}. Examples: ${examples}`;
 }
 
-// Trim OCR to last 20 lines — model only needs recent context
 function trimOcr(text) {
   const lines = text.split("\n").filter((l) => l.trim());
   return lines.slice(-20).join("\n");
 }
+
+const MODE_CONFIG = {
+  reply: {
+    tones: ['Flirty', 'Curious', 'Funny'],
+    instruction: `Someone sent a message and you need to respond. Generate 3 replies — each must be genuinely distinct:
+- Flirty: unmistakably flirty — zero doubt they're being flirted with. Bold, a little tension, a tease or compliment with an edge. Not vague.
+- Curious: genuine observation or reaction first, then a question that naturally follows. Should feel like real interest, not fishing. Never ask just to ask.
+- Funny: laugh-out-loud funny. Mine the whole conversation for material — a contradiction, something weird they said, an inside moment. Real punchline, sharp comeback, or playful roast that only makes sense in THIS conversation. Generic = failure.`,
+  },
+  ask_out: {
+    tones: ['Subtle', 'Balanced', 'Funny'],
+    instruction: `The conversation is warm enough to move off the app. Generate 3 messages that transition toward meeting IRL or exchanging numbers:
+- Subtle: plant the seed without being obvious — a casual reference to doing something together that doesn't feel like a formal ask
+- Balanced: clear intention, confident but not intense — makes it easy for them to say yes
+- Funny: a lighthearted, funny way to pop the question that takes the pressure off — makes them laugh and say yes at the same time`,
+  },
+  break_ice: {
+    tones: ['Bold', 'Playful', 'Funny'],
+    instruction: `You matched but nobody has talked yet, or you want to send a strong opener. Use anything visible in the conversation or profile from the screenshot. Generate 3 openers:
+- Bold: confident, direct, makes a strong first impression — not a compliment but a statement or observation that demands a response
+- Playful: light and fun, easy to reply to, sets a good vibe from the start
+- Funny: an opener that makes them actually laugh before anything else — use something specific from what you can see, not a generic line. This has to be genuinely funny.`,
+  },
+  re_engage: {
+    tones: ['Callback', 'Fresh Start', 'Funny'],
+    instruction: `The conversation went cold for days or weeks. Generate 3 messages that restart it naturally:
+- Callback: reference something specific they said earlier in the conversation — makes it feel like you were thinking about them, not just randomly texting
+- Fresh Start: don't acknowledge the gap at all — just start a new thread naturally, like picking up where things left off
+- Funny: be self-aware about the silence in a way that completely disarms it — make them laugh about the fact that nobody texted for so long. Has to actually be funny, not just "lol sorry I disappeared".`,
+  },
+  rizz: {
+    tones: ['Smooth', 'Daring', 'Funny'],
+    instruction: `Full confidence mode. High charm, no filter. Generate 3 replies:
+- Smooth: effortlessly cool and magnetic — says a lot without saying much, makes them feel like they're talking to someone different
+- Daring: bold and unapologetic — the kind of reply most people would be too scared to send but secretly wish they could
+- Funny: cocky humor that works because it's self-aware — not try-hard, just someone who doesn't take themselves too seriously while clearly knowing what they want`,
+  },
+  follow_up: {
+    tones: ['Casual', 'Witty', 'Funny'],
+    instruction: `You sent the first message and they never replied. You want one last shot without looking desperate or bitter. Generate 3 follow-ups:
+- Casual: low pressure, no mention of being ignored — just a natural continuation that gives them an easy opening, like the non-reply never happened
+- Witty: acknowledge the silence in a charming way — not passive-aggressive, not needy, just clever enough that they feel a little bad and a little intrigued
+- Funny: make them actually feel guilty for not replying — but in a funny, charming way that makes them want to respond immediately. Has to land as funny, not salty.`,
+  },
+};
 
 export default async function handler(req) {
   const corsHeaders = {
@@ -36,6 +79,8 @@ export default async function handler(req) {
   if (!userId || !ocrText) {
     return new Response(JSON.stringify({ error: "missing_fields" }), { status: 400, headers: corsHeaders });
   }
+
+  const modeConfig = MODE_CONFIG[mode] || MODE_CONFIG.reply;
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -53,7 +98,6 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: "daily_limit_reached" }), { status: 403, headers: corsHeaders });
   }
 
-  const isAskOut = mode === "ask_out";
   const voiceSection = profile?.messages?.trim()
     ? buildVoiceProfile(profile.messages)
     : "No voice profile — natural modern texting style.";
@@ -75,36 +119,23 @@ Rules:
 - Mirror user's voice exactly
 
 Sound human, not AI:
-- Write how real people text — imperfect, casual, spontaneous
-- No polished or formal phrasing — avoid words like "absolutely", "definitely", "certainly", "that's so interesting", "I'd love to"
+- Write how real people text — casual, spontaneous, natural
+- Avoid: "absolutely", "definitely", "certainly", "that's so interesting", "I'd love to"
 - No compliment sandwiches or overly smooth transitions
-- Replies should feel like something the user actually typed in 10 seconds, not crafted
-- Most replies should end with a follow-up question or a hook that makes ignoring hard — keep the conversation moving
-- The question should feel natural, not like an interview — curious, playful, or teasing depending on tone
-- Incomplete thoughts, trailing off, light sarcasm, self-deprecating humor are all fine
-- Always capitalize the first word of the reply and use proper punctuation — casual tone, not sloppy writing
+- Replies should feel typed in 10 seconds, not crafted
+- Always capitalize the first word and use proper punctuation — casual, not sloppy`;
 
-Tone rules — each must be genuinely distinct and committed:
-- Flirty: be unmistakably flirty — the person reading it should have zero doubt they're being flirted with. Create tension, be a little bold, maybe a light tease or a compliment with an edge. Not "you seem cool", not vague — make it land clearly as a flirt.
-- Curious: don't just ask a question for the sake of it — make a genuine observation or reaction first, then ask something that naturally follows from what they said. It should feel like you're actually interested, not fishing for a response. Never ask just to ask.
-- Funny: this has to be genuinely, laugh-out-loud funny — not "haha cute" funny, actually funny. Mine the entire conversation for material — an earlier thing they said, a contradiction, something weird they admitted, an inside moment. Use that as the setup. Write a real punchline, a sharp witty comeback, or a playful roast that only makes sense in the context of THIS specific conversation. Generic humor is a failure. If someone reading it wouldn't actually laugh, rewrite it. Commit fully to the joke — no hedging, no softening it.`;
-
-  const trimmedOcr = trimOcr(ocrText);
+  const toneList = modeConfig.tones.map(t => `{"reply":"...","tip":"...","tone":"${t}"}`).join(",");
 
   const userMessage = `${voiceSection}
 
 Conversation:
-${trimmedOcr}
+${trimOcr(ocrText)}
 
-${isAskOut
-    ? `3 messages moving toward meeting IRL or exchanging numbers (Subtle→Direct).
-Return ONLY:
-[{"reply":"...","tip":"...","tone":"Subtle"},{"reply":"...","tip":"...","tone":"Balanced"},{"reply":"...","tip":"...","tone":"Direct"}]`
-    : `3 replies — Flirty, Curious, Funny — genuinely different approaches, 1-2 sentences each.
-Return ONLY:
-[{"reply":"...","tip":"...","tone":"Flirty"},{"reply":"...","tip":"...","tone":"Curious"},{"reply":"...","tip":"...","tone":"Funny"}]`}`;
+${modeConfig.instruction}
 
-  const expectedTones = isAskOut ? ['Subtle', 'Balanced', 'Direct'] : ['Flirty', 'Curious', 'Funny'];
+Return ONLY a JSON array:
+[${toneList}]`;
 
   let message;
   try {
@@ -128,6 +159,6 @@ Return ONLY:
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return new Response(JSON.stringify({ error: "parse_error" }), { status: 500, headers: corsHeaders });
 
-  const suggestions = JSON.parse(jsonMatch[0]).slice(0, 3).map((s, i) => ({ ...s, tone: expectedTones[i] }));
+  const suggestions = JSON.parse(jsonMatch[0]).slice(0, 3).map((s, i) => ({ ...s, tone: modeConfig.tones[i] }));
   return new Response(JSON.stringify({ suggestions }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
