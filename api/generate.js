@@ -82,7 +82,12 @@ Sound human, not AI:
 - Most replies should end with a follow-up question or a hook that makes ignoring hard — keep the conversation moving
 - The question should feel natural, not like an interview — curious, playful, or teasing depending on tone
 - Incomplete thoughts, trailing off, light sarcasm, self-deprecating humor are all fine
-- Always capitalize the first word of the reply and use proper punctuation — casual tone, not sloppy writing`;
+- Always capitalize the first word of the reply and use proper punctuation — casual tone, not sloppy writing
+
+Tone rules — each must be genuinely distinct and committed:
+- Flirty: create real tension, be bold, make them feel something — not just "you seem cool"
+- Curious: ask something that shows you actually paid attention to what they said — not generic questions like "what do you do for fun?"
+- Funny: this must actually be funny — write a real joke, witty comeback, or playful roast based on exactly what they said. If you can't make someone laugh out loud with it, rewrite it. No safe "haha" replies, no mild observations. Commit to the bit.`;
 
   const trimmedOcr = trimOcr(ocrText);
 
