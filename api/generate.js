@@ -81,7 +81,8 @@ Sound human, not AI:
 - Replies should feel like something the user actually typed in 10 seconds, not crafted
 - Most replies should end with a follow-up question or a hook that makes ignoring hard — keep the conversation moving
 - The question should feel natural, not like an interview — curious, playful, or teasing depending on tone
-- Incomplete thoughts, trailing off, light sarcasm, self-deprecating humor are all fine`;
+- Incomplete thoughts, trailing off, light sarcasm, self-deprecating humor are all fine
+- Always capitalize the first word of the reply and use proper punctuation — casual tone, not sloppy writing`;
 
   const trimmedOcr = trimOcr(ocrText);
 
