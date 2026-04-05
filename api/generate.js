@@ -59,7 +59,14 @@ export default async function handler(req, res) {
 ${voiceExamples}`
     : `No voice profile set — write in a natural, modern texting style.`;
 
+  const now = new Date().toLocaleString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+  });
+
   const conversationContext = `IMPORTANT — reading a dating app conversation:
+Current date and time: ${now}
+
 Each message is prefixed with who sent it:
 - [YOU] = sent by the user (the person you're helping) — do NOT reply to these
 - [THEM] = sent by their match — this is who you're writing a reply to
