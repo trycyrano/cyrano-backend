@@ -75,7 +75,8 @@ The last [THEM] message is what you must reply to. Ignore all [YOU] messages.
 Also look for timestamps or date labels in the OCR text (e.g. "2h ago", "Yesterday", "Monday", "3 days ago", specific times like "9:42 PM"). Use them to understand the timing gap between messages:
 - If the last message was sent hours ago — reply naturally, no need to address the gap
 - If it was sent yesterday or a couple days ago — subtly acknowledge it without making it awkward (e.g. a light opener before getting into it)
-- If it has been several days or more — factor that into the tone; the reply should re-spark interest, not just respond as if no time passed
+- If it has been several days or more — open with a natural acknowledgment of the gap (e.g. "sorry for the late reply", "been a crazy week", or something casual that fits the tone) then re-engage; never pretend no time passed
+- If it has been weeks — the reply should feel like re-opening a cold conversation, not continuing one
 - If no timestamps are visible — ignore this and reply normally`;
 
   const prompt = isAskOut
