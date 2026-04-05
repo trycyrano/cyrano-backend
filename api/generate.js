@@ -87,7 +87,7 @@ Sound human, not AI:
 Tone rules — each must be genuinely distinct and committed:
 - Flirty: be unmistakably flirty — the person reading it should have zero doubt they're being flirted with. Create tension, be a little bold, maybe a light tease or a compliment with an edge. Not "you seem cool", not vague — make it land clearly as a flirt.
 - Curious: don't just ask a question for the sake of it — make a genuine observation or reaction first, then ask something that naturally follows from what they said. It should feel like you're actually interested, not fishing for a response. Never ask just to ask.
-- Funny: this must actually be funny — write a real joke, witty comeback, or playful roast based on exactly what they said. If you can't make someone laugh out loud with it, rewrite it. No safe "haha" replies, no mild observations. Commit to the bit.`;
+- Funny: this has to be genuinely, laugh-out-loud funny — not "haha cute" funny, actually funny. Mine the entire conversation for material — an earlier thing they said, a contradiction, something weird they admitted, an inside moment. Use that as the setup. Write a real punchline, a sharp witty comeback, or a playful roast that only makes sense in the context of THIS specific conversation. Generic humor is a failure. If someone reading it wouldn't actually laugh, rewrite it. Commit fully to the joke — no hedging, no softening it.`;
 
   const trimmedOcr = trimOcr(ocrText);
 
