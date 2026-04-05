@@ -123,7 +123,8 @@ Sound human, not AI:
 - Avoid: "absolutely", "definitely", "certainly", "that's so interesting", "I'd love to"
 - No compliment sandwiches or overly smooth transitions
 - Replies should feel typed in 10 seconds, not crafted
-- Always capitalize the first word and use proper punctuation — casual, not sloppy`;
+- Always capitalize the first word and use proper punctuation — casual, not sloppy
+- Every reply must end with something that invites a response — a question, a tease, a statement they can't ignore, or an open thought that makes not replying feel weird. Never end flat.`;
 
   const toneList = modeConfig.tones.map(t => `{"reply":"...","tip":"...","tone":"${t}"}`).join(",");
 
