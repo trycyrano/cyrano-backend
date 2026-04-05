@@ -90,79 +90,29 @@ Return ONLY:
 [{"reply":"...","tip":"...","tone":"Flirty"},{"reply":"...","tip":"...","tone":"Curious"},{"reply":"...","tip":"...","tone":"Funny"}]`}`;
 
   const expectedTones = isAskOut ? ['Subtle', 'Balanced', 'Direct'] : ['Flirty', 'Curious', 'Funny'];
-  const encoder = new TextEncoder();
 
-  // Increment usage before streaming
+  let message;
+  try {
+    message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 600,
+      temperature: 0.9,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: "anthropic_error", detail: err.message }), { status: 500, headers: corsHeaders });
+  }
+
   await supabase.from("usage").upsert(
     { user_id: userId, date: today, count: (usage?.count || 0) + 1 },
     { onConflict: "user_id,date" }
   );
 
-  // Extract complete suggestion objects from partial JSON as it streams
-  function extractSuggestions(text) {
-    const found = [];
-    let depth = 0, start = -1;
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] === '{') { if (depth === 0) start = i; depth++; }
-      else if (text[i] === '}') {
-        depth--;
-        if (depth === 0 && start !== -1) {
-          try {
-            const obj = JSON.parse(text.slice(start, i + 1));
-            if (obj.reply && obj.tip) found.push(obj);
-          } catch (_) {}
-          start = -1;
-        }
-      }
-    }
-    return found.slice(0, 3).map((s, i) => ({ ...s, tone: expectedTones[i] }));
-  }
+  const text = message.content[0].text;
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return new Response(JSON.stringify({ error: "parse_error" }), { status: 500, headers: corsHeaders });
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      try {
-        const aiStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
-          max_tokens: 600,
-          temperature: 0.9,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userMessage }],
-        });
-
-        let fullText = '';
-        let sentCount = 0;
-
-        for await (const chunk of aiStream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
-            fullText += chunk.delta.text;
-            // Emit each suggestion card as soon as it's complete in the stream
-            const partial = extractSuggestions(fullText);
-            if (partial.length > sentCount) {
-              for (let i = sentCount; i < partial.length; i++) {
-                send({ suggestion: partial[i], index: i });
-              }
-              sentCount = partial.length;
-            }
-          }
-        }
-
-        // Final done event with tone-enforced order
-        const jsonMatch = fullText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const suggestions = JSON.parse(jsonMatch[0]).slice(0, 3).map((s, i) => ({ ...s, tone: expectedTones[i] }));
-          send({ done: true, suggestions });
-        } else {
-          send({ done: true, suggestions: extractSuggestions(fullText) });
-        }
-      } catch (err) {
-        send({ error: err.message });
-      }
-      controller.close();
-    }
-  });
-
-  return new Response(stream, {
-    headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
-  });
+  const suggestions = JSON.parse(jsonMatch[0]).slice(0, 3).map((s, i) => ({ ...s, tone: expectedTones[i] }));
+  return new Response(JSON.stringify({ suggestions }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
