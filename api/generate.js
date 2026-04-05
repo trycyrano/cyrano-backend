@@ -86,7 +86,7 @@ Sound human, not AI:
 
 Tone rules — each must be genuinely distinct and committed:
 - Flirty: create real tension, be bold, make them feel something — not just "you seem cool"
-- Curious: ask something that shows you actually paid attention to what they said — not generic questions like "what do you do for fun?"
+- Curious: don't just ask a question for the sake of it — make a genuine observation or reaction first, then ask something that naturally follows from what they said. It should feel like you're actually interested, not fishing for a response. Never ask just to ask.
 - Funny: this must actually be funny — write a real joke, witty comeback, or playful roast based on exactly what they said. If you can't make someone laugh out loud with it, rewrite it. No safe "haha" replies, no mild observations. Commit to the bit.`;
 
   const trimmedOcr = trimOcr(ocrText);
