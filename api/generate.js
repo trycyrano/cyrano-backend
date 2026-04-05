@@ -63,7 +63,13 @@ ${voiceExamples}`
 Each message is prefixed with who sent it:
 - [YOU] = sent by the user (the person you're helping) — do NOT reply to these
 - [THEM] = sent by their match — this is who you're writing a reply to
-The last [THEM] message is what you must reply to. Ignore all [YOU] messages.`;
+The last [THEM] message is what you must reply to. Ignore all [YOU] messages.
+
+Also look for timestamps or date labels in the OCR text (e.g. "2h ago", "Yesterday", "Monday", "3 days ago", specific times like "9:42 PM"). Use them to understand the timing gap between messages:
+- If the last message was sent hours ago — reply naturally, no need to address the gap
+- If it was sent yesterday or a couple days ago — subtly acknowledge it without making it awkward (e.g. a light opener before getting into it)
+- If it has been several days or more — factor that into the tone; the reply should re-spark interest, not just respond as if no time passed
+- If no timestamps are visible — ignore this and reply normally`;
 
   const prompt = isAskOut
     ? `You are a dating coach helping someone move a conversation toward meeting in person.
