@@ -132,53 +132,36 @@ Now generate for this conversation. Return ONLY a JSON array:
   { "reply": "...", "tip": "...", "tone": "Funny" }
 ]`}`;
 
-  // Increment usage before streaming starts
-  await supabase.from("usage").upsert(
-    { user_id: userId, date: today, count: (usage?.count || 0) + 1 },
-    { onConflict: "user_id,date" }
-  );
-
-  const expectedTones = isAskOut
-    ? ['Subtle', 'Balanced', 'Direct']
-    : ['Flirty', 'Curious', 'Funny'];
-
-  // Stream SSE to client
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
+  let message;
   try {
-    const stream = anthropic.messages.stream({
+    message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
       temperature: 0.9,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     });
-
-    let fullText = "";
-
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        fullText += chunk.delta.text;
-        res.write(`data: ${JSON.stringify({ chunk: chunk.delta.text })}\n\n`);
-      }
-    }
-
-    const jsonMatch = fullText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      res.write(`data: ${JSON.stringify({ error: "parse_error" })}\n\n`);
-      return res.end();
-    }
-
-    const suggestions = JSON.parse(jsonMatch[0])
-      .slice(0, 3)
-      .map((s, i) => ({ ...s, tone: expectedTones[i] }));
-
-    res.write(`data: ${JSON.stringify({ done: true, suggestions })}\n\n`);
-    res.end();
   } catch (err) {
-    res.write(`data: ${JSON.stringify({ error: "anthropic_error", detail: err.message })}\n\n`);
-    res.end();
+    return res.status(500).json({ error: "anthropic_error", detail: err.message, status: err.status });
   }
+
+  // Increment usage
+  await supabase.from("usage").upsert(
+    { user_id: userId, date: today, count: (usage?.count || 0) + 1 },
+    { onConflict: "user_id,date" }
+  );
+
+  const text = message.content[0].text;
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return res.status(500).json({ error: "parse_error" });
+
+  const expectedTones = isAskOut
+    ? ['Subtle', 'Balanced', 'Direct']
+    : ['Flirty', 'Curious', 'Funny'];
+
+  const suggestions = JSON.parse(jsonMatch[0])
+    .slice(0, 3)
+    .map((s, i) => ({ ...s, tone: expectedTones[i] }));
+
+  res.json({ suggestions });
 }
