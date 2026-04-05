@@ -36,28 +36,38 @@ export default async function handler(req, res) {
     .eq("date", today)
     .single();
 
-  if (usage?.count >= 5) {
+  const DEV_USERS = ['c94ec209-a100-4319-90c5-6e02ec6e28e7'];
+  const dailyLimit = DEV_USERS.includes(userId) ? 50 : 5;
+  if (usage?.count >= dailyLimit) {
     return res.status(403).json({ error: "daily_limit_reached" });
   }
 
-  const voiceExamples = profile?.messages || "No voice profile yet.";
+  const rawMessages = profile?.messages || "";
+  const voiceExamples = rawMessages.trim()
+    ? rawMessages
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+        .map((m, i) => `${i + 1}. "${m}"`)
+        .join("\n")
+    : null;
   const isAskOut = mode === "ask_out";
+
+  const voiceSection = voiceExamples
+    ? `The user's actual sent messages from past conversations (study their vocabulary, sentence length, humor, punctuation, and emoji use — replicate it exactly):
+${voiceExamples}`
+    : `No voice profile set — write in a natural, modern texting style.`;
 
   const prompt = isAskOut
     ? `You are a dating coach helping someone move a conversation toward meeting in person.
 
-The user's natural texting style (match this voice exactly):
-${voiceExamples}
+${voiceSection}
 
 Conversation from screenshot:
 ${ocrText}
 
-Generate exactly 3 messages that naturally transition toward meeting IRL or exchanging numbers. Range from subtle to direct.
-
-For each:
-- Write the message in the user's voice
-- Add a one-line coach tip on the approach
-- Add a label: Subtle / Balanced / Direct
+Generate exactly 3 messages that naturally transition toward meeting IRL or exchanging numbers. Range from subtle to direct. Mirror the user's voice precisely — same casualness, same length, same punctuation style.
 
 Return ONLY a JSON array, no other text:
 [
@@ -67,16 +77,14 @@ Return ONLY a JSON array, no other text:
 ]`
     : `You are a dating coach generating reply suggestions in the user's own voice.
 
-The user's natural texting style (match this voice exactly):
-${voiceExamples}
+${voiceSection}
 
 Conversation from screenshot:
 ${ocrText}
 
-Generate exactly 3 reply suggestions. For each:
-- Write the reply matching the user's vocabulary, humor, and tone
+Generate exactly 3 reply suggestions. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. For each reply:
+- Match their vocabulary and tone exactly
 - Add a one-line coach tip explaining why this reply works
-- Add a tone tag: Flirty, Curious, or Funny
 
 Return ONLY a JSON array, no other text:
 [
@@ -85,11 +93,16 @@ Return ONLY a JSON array, no other text:
   { "reply": "...", "tip": "...", "tone": "Funny" }
 ]`;
 
-  const message = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    messages: [{ role: "user", content: prompt }],
-  });
+  let message;
+  try {
+    message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "anthropic_error", detail: err.message, status: err.status });
+  }
 
   // Increment usage
   await supabase.from("usage").upsert(
