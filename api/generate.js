@@ -85,7 +85,7 @@ Sound human, not AI:
 - Always capitalize the first word of the reply and use proper punctuation — casual tone, not sloppy writing
 
 Tone rules — each must be genuinely distinct and committed:
-- Flirty: create real tension, be bold, make them feel something — not just "you seem cool"
+- Flirty: be unmistakably flirty — the person reading it should have zero doubt they're being flirted with. Create tension, be a little bold, maybe a light tease or a compliment with an edge. Not "you seem cool", not vague — make it land clearly as a flirt.
 - Curious: don't just ask a question for the sake of it — make a genuine observation or reaction first, then ask something that naturally follows from what they said. It should feel like you're actually interested, not fishing for a response. Never ask just to ask.
 - Funny: this must actually be funny — write a real joke, witty comeback, or playful roast based on exactly what they said. If you can't make someone laugh out loud with it, rewrite it. No safe "haha" replies, no mild observations. Commit to the bit.`;
 
