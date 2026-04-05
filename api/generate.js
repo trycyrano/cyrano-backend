@@ -59,12 +59,22 @@ export default async function handler(req, res) {
 ${voiceExamples}`
     : `No voice profile set — write in a natural, modern texting style.`;
 
+  const conversationContext = `IMPORTANT — reading a dating app screenshot:
+The OCR text below comes from a dating app chat. Both sides of the conversation are mixed together since OCR reads left-to-right/top-to-bottom without knowing who sent each message.
+- Messages on the RIGHT side of the screen = sent by the USER (the person you're helping)
+- Messages on the LEFT side = sent by their MATCH
+- The LAST message in the conversation is what the user needs to reply TO — it was sent by their match
+- Do NOT generate a reply to the user's own messages
+- Focus entirely on the most recent message from the match and reply to that`;
+
   const prompt = isAskOut
     ? `You are a dating coach helping someone move a conversation toward meeting in person.
 
+${conversationContext}
+
 ${voiceSection}
 
-Conversation from screenshot:
+Conversation OCR text:
 ${ocrText}
 
 Generate exactly 3 messages that naturally transition toward meeting IRL or exchanging numbers. Range from subtle to direct. Mirror the user's voice precisely — same casualness, same length, same punctuation style.
@@ -77,12 +87,14 @@ Return ONLY a JSON array, no other text:
 ]`
     : `You are a dating coach generating reply suggestions in the user's own voice.
 
+${conversationContext}
+
 ${voiceSection}
 
-Conversation from screenshot:
+Conversation OCR text:
 ${ocrText}
 
-Generate exactly 3 reply suggestions — one Flirty, one Curious, one Funny. Each must use a distinctly different approach. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. Add a one-line coach tip per reply.
+Generate exactly 3 reply suggestions — one Flirty, one Curious, one Funny. Each must use a distinctly different approach. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. Keep replies concise (1-2 sentences max). Add a one-line coach tip per reply.
 
 IMPORTANT: The tone field must be exactly "Flirty" for reply 1, "Curious" for reply 2, "Funny" for reply 3. Do not repeat tones.
 
@@ -97,7 +109,7 @@ Return ONLY a JSON array, no other text:
   try {
     message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });
   } catch (err) {
