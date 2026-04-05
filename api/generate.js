@@ -82,9 +82,9 @@ ${voiceSection}
 Conversation from screenshot:
 ${ocrText}
 
-Generate exactly 3 reply suggestions. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. For each reply:
-- Match their vocabulary and tone exactly
-- Add a one-line coach tip explaining why this reply works
+Generate exactly 3 reply suggestions — one Flirty, one Curious, one Funny. Each must use a distinctly different approach. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. Add a one-line coach tip per reply.
+
+IMPORTANT: The tone field must be exactly "Flirty" for reply 1, "Curious" for reply 2, "Funny" for reply 3. Do not repeat tones.
 
 Return ONLY a JSON array, no other text:
 [
@@ -114,6 +114,13 @@ Return ONLY a JSON array, no other text:
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return res.status(500).json({ error: "parse_error" });
 
-  const suggestions = JSON.parse(jsonMatch[0]);
+  const expectedTones = isAskOut
+    ? ['Subtle', 'Balanced', 'Direct']
+    : ['Flirty', 'Curious', 'Funny'];
+
+  const suggestions = JSON.parse(jsonMatch[0])
+    .slice(0, 3)
+    .map((s, i) => ({ ...s, tone: expectedTones[i] }));
+
   res.json({ suggestions });
 }
