@@ -7,6 +7,31 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+function buildVoiceProfile(rawMessages) {
+  const lines = rawMessages
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 30);
+
+  if (!lines.length) return null;
+
+  const avgLen = Math.round(lines.reduce((s, l) => s + l.length, 0) / lines.length);
+  const emojiCount = lines.filter((l) => /\p{Emoji}/u.test(l)).length;
+  const emojiFreq = emojiCount === 0 ? "never uses emojis" : emojiCount < lines.length * 0.3 ? "rarely uses emojis" : "frequently uses emojis";
+  const punctuation = lines.filter((l) => /[.!?]$/.test(l)).length < lines.length * 0.3 ? "rarely ends with punctuation" : "uses punctuation normally";
+  const lowercase = lines.filter((l) => l[0] === l[0]?.toLowerCase()).length > lines.length * 0.6 ? "types mostly lowercase" : "uses normal capitalization";
+  const examples = lines.slice(0, 6).map((m, i) => `  ${i + 1}. "${m}"`).join("\n");
+
+  return `Voice profile (replicate this style exactly):
+- Average message length: ~${avgLen} characters
+- ${emojiFreq}
+- ${punctuation}
+- ${lowercase}
+- Example messages they've sent:
+${examples}`;
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -20,21 +45,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  // Load voice profile
-  const { data: profile } = await supabase
-    .from("voice_profiles")
-    .select("messages")
-    .eq("user_id", userId)
-    .single();
-
-  // Check usage (free tier = 5/day)
-  const today = new Date().toISOString().split("T")[0];
-  const { data: usage } = await supabase
-    .from("usage")
-    .select("count")
-    .eq("user_id", userId)
-    .eq("date", today)
-    .single();
+  // Load voice profile + check usage in parallel
+  const [{ data: profile }, { data: usage }] = await Promise.all([
+    supabase.from("voice_profiles").select("messages").eq("user_id", userId).single(),
+    supabase.from("usage").select("count").eq("user_id", userId).eq("date", new Date().toISOString().split("T")[0]).single(),
+  ]);
 
   const DEV_USERS = ['c94ec209-a100-4319-90c5-6e02ec6e28e7'];
   const dailyLimit = DEV_USERS.includes(userId) ? 50 : 5;
@@ -42,87 +57,89 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "daily_limit_reached" });
   }
 
-  const rawMessages = profile?.messages || "";
-  const voiceExamples = rawMessages.trim()
-    ? rawMessages
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .slice(0, 20)
-        .map((m, i) => `${i + 1}. "${m}"`)
-        .join("\n")
-    : null;
+  const today = new Date().toISOString().split("T")[0];
   const isAskOut = mode === "ask_out";
 
-  const voiceSection = voiceExamples
-    ? `The user's actual sent messages from past conversations (study their vocabulary, sentence length, humor, punctuation, and emoji use — replicate it exactly):
-${voiceExamples}`
-    : `No voice profile set — write in a natural, modern texting style.`;
+  const voiceSection = profile?.messages?.trim()
+    ? buildVoiceProfile(profile.messages)
+    : "No voice profile — write in a natural, modern texting style.";
 
   const now = new Date().toLocaleString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+    hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   });
 
-  const conversationContext = `IMPORTANT — reading a dating app conversation:
-Current date and time: ${now}
+  // System prompt — role, rules, permanent context
+  const systemPrompt = `You are Cyrano, an expert dating coach who writes reply suggestions in the user's own voice. You are witty, emotionally intelligent, and deeply understand modern dating dynamics.
 
-Each message is prefixed with who sent it:
-- [YOU] = sent by the user (the person you're helping) — do NOT reply to these
-- [THEM] = sent by their match — this is who you're writing a reply to
-The last [THEM] message is what you must reply to. Ignore all [YOU] messages.
+Your job:
+- Read a dating app conversation (OCR text with [YOU] and [THEM] labels)
+- Write replies FOR THE USER to send TO THEIR MATCH
+- [YOU] = the user's sent messages — study these for voice, do NOT reply to them
+- [THEM] = the match's messages — reply to the LAST [THEM] message only
+- Never mix up who said what
 
-Also look for timestamps or date labels in the OCR text (e.g. "2h ago", "Yesterday", "Monday", "3 days ago", specific times like "9:42 PM"). Use them to understand the timing gap between messages:
-- If the last message was sent hours ago — reply naturally, no need to address the gap
-- If it was sent yesterday or a couple days ago — subtly acknowledge it without making it awkward (e.g. a light opener before getting into it)
-- If it has been several days or more — open with a natural acknowledgment of the gap (e.g. "sorry for the late reply", "been a crazy week", or something casual that fits the tone) then re-engage; never pretend no time passed
-- If it has been weeks — the reply should feel like re-opening a cold conversation, not continuing one
-- If no timestamps are visible — ignore this and reply normally`;
+Timing awareness — current time is ${now}:
+- Look for timestamps in the OCR (e.g. "2h ago", "Yesterday", "Monday", "9:42 PM")
+- Hours ago → reply naturally
+- Yesterday / couple days ago → subtle acknowledgment before getting into it
+- Several days → open with a casual acknowledgment ("sorry for the late reply", "been a crazy week") then re-engage
+- Weeks → treat as re-opening a cold conversation entirely
+- No timestamps visible → ignore timing, reply normally
 
-  const prompt = isAskOut
-    ? `You are a dating coach helping someone move a conversation toward meeting in person.
+Output rules:
+- Return ONLY valid JSON, no markdown, no explanation
+- Replies must be concise (1-2 sentences max)
+- Each tone must be genuinely distinct — no repeating approaches
+- Mirror the user's voice exactly from their voice profile`;
 
-${conversationContext}
+  const fewShotReply = isAskOut ? `[
+  { "reply": "okay but real talk we should actually grab that drink instead of just talking about it lol", "tip": "Turns the abstract into concrete without being intense.", "tone": "Subtle" },
+  { "reply": "alright I'm calling it — we're doing drinks this week, pick a night", "tip": "Takes the lead confidently, gives them choice of timing.", "tone": "Balanced" },
+  { "reply": "give me your number, this convo is too good to stay on here", "tip": "Direct and flattering — frames the move as a compliment.", "tone": "Direct" }
+]` : `[
+  { "reply": "okay that's actually really attractive ngl 👀", "tip": "Short, punchy, leaves them wanting more.", "tone": "Flirty" },
+  { "reply": "wait what made you get into that? I feel like there's a story there", "tip": "Shows genuine interest and opens them up.", "tone": "Curious" },
+  { "reply": "okay so you're saying you're basically a professional chaos gremlin got it", "tip": "Playful reframe that shows you were paying attention.", "tone": "Funny" }
+]`;
 
-${voiceSection}
+  const userMessage = `${voiceSection}
 
 Conversation OCR text:
 ${ocrText}
 
-Generate exactly 3 messages that naturally transition toward meeting IRL or exchanging numbers. Range from subtle to direct. Mirror the user's voice precisely — same casualness, same length, same punctuation style.
+${isAskOut
+  ? `Generate exactly 3 messages that naturally move toward meeting IRL or exchanging numbers. Range from subtle to direct. Mirror the user's voice precisely.
 
-Return ONLY a JSON array, no other text:
+Example of perfect output:
+${fewShotReply}
+
+Now generate for this conversation. Return ONLY a JSON array:
 [
   { "reply": "...", "tip": "...", "tone": "Subtle" },
   { "reply": "...", "tip": "...", "tone": "Balanced" },
   { "reply": "...", "tip": "...", "tone": "Direct" }
 ]`
-    : `You are a dating coach generating reply suggestions in the user's own voice.
+  : `Generate exactly 3 reply suggestions — Flirty, Curious, Funny — each with a genuinely different approach. Mirror the user's voice precisely. 1-2 sentences max per reply.
 
-${conversationContext}
+Example of perfect output:
+${fewShotReply}
 
-${voiceSection}
-
-Conversation OCR text:
-${ocrText}
-
-Generate exactly 3 reply suggestions — one Flirty, one Curious, one Funny. Each must use a distinctly different approach. Mirror the user's voice precisely — same casualness, sentence length, punctuation style, and emoji habits. Keep replies concise (1-2 sentences max). Add a one-line coach tip per reply.
-
-IMPORTANT: The tone field must be exactly "Flirty" for reply 1, "Curious" for reply 2, "Funny" for reply 3. Do not repeat tones.
-
-Return ONLY a JSON array, no other text:
+Now generate for this conversation. Return ONLY a JSON array:
 [
   { "reply": "...", "tip": "...", "tone": "Flirty" },
   { "reply": "...", "tip": "...", "tone": "Curious" },
   { "reply": "...", "tip": "...", "tone": "Funny" }
-]`;
+]`}`;
 
   let message;
   try {
     message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+      temperature: 0.9,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
     });
   } catch (err) {
     return res.status(500).json({ error: "anthropic_error", detail: err.message, status: err.status });
