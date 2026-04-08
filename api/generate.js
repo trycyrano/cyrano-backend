@@ -93,7 +93,7 @@ export default async function handler(req) {
   ]);
 
   const DEV_USERS = ['c94ec209-a100-4319-90c5-6e02ec6e28e7'];
-  const dailyLimit = DEV_USERS.includes(userId) ? 50 : 5;
+  const dailyLimit = DEV_USERS.includes(userId) ? 500 : 5;
   if (usage?.count >= dailyLimit) {
     return new Response(JSON.stringify({ error: "daily_limit_reached" }), { status: 403, headers: corsHeaders });
   }
