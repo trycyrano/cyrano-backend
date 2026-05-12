@@ -71,8 +71,8 @@ export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return new Response(null, { status: 405, headers: corsHeaders });
 
-  const { userId, imageBase64, imageMediaType, mode } = await req.json();
-  if (!userId || !imageBase64) {
+  const { userId, imageBase64, imageMediaType, ocrText, mode } = await req.json();
+  if (!userId || (!imageBase64 && !ocrText)) {
     return new Response(JSON.stringify({ error: "missing_fields" }), { status: 400, headers: corsHeaders });
   }
 
@@ -103,32 +103,50 @@ export default async function handler(req) {
     hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   });
 
-  const systemPrompt = `You are Cyrano, a witty dating coach writing reply suggestions in the user's voice.
+  const systemPrompt = `You are Cyrano. You write the exact text messages the user will copy and send — nothing else.
 Current time: ${now}
 
-Rules:
-- The screenshot shows a dating app conversation. Right-side bubbles = the user's messages (study for voice, never reply to). Left-side bubbles = the match's messages (reply to the LAST one only).
-- Timestamps visible in the screenshot: hours ago→reply naturally, days→briefly acknowledge gap, weeks→re-open cold
-- Return ONLY valid JSON, no markdown
+Step 1 — Read the screenshot:
+Dating apps show conversations with two sides. One person's bubbles are on the RIGHT (usually colored — blue, purple, green). The other person's bubbles are on the LEFT (usually gray or white). The person on the RIGHT is the user. The person on the LEFT is their match.
+- Identify the last message sent by the LEFT person (the match). That is what you are replying to.
+- Read the RIGHT person's messages to understand their texting voice and style.
+- Ignore any UI elements, headers, timestamps, or app chrome — only focus on the message bubbles.
+
+Step 2 — Write the replies:
+- "reply" = the exact words the user will type and send. Not a suggestion. Not advice. The literal message text.
+- "tip" = one short sentence on why it works
+- Return ONLY valid JSON, no markdown, no extra text
 - 1-2 sentences max per reply, each tone genuinely distinct
-- Mirror user's voice exactly
+- Mirror the RIGHT person's voice exactly
 
 Sound human, not AI:
-- Write how real people text — casual, spontaneous, natural
+- Casual, spontaneous, natural — typed in 10 seconds
 - Avoid: "absolutely", "definitely", "certainly", "that's so interesting", "I'd love to"
-- No compliment sandwiches or overly smooth transitions
-- Replies should feel typed in 10 seconds, not crafted
-- Always capitalize the first word and use proper punctuation — casual, not sloppy
-- Every reply must end with something that invites a response — a question, a tease, a statement they can't ignore, or an open thought that makes not replying feel weird. Never end flat.`;
+- Every reply must end with something inviting a response — question, tease, or open thought. Never end flat.`;
 
-  const toneList = modeConfig.tones.map(t => `{"reply":"...","tip":"...","tone":"${t}"}`).join(",");
+  const toneList = modeConfig.tones.map(t => `{"reply":"<the actual message text to send>","tip":"<one sentence on why it works>","tone":"${t}"}`).join(",");
 
-  const textContent = `${voiceSection}
+  const example = `Example of correct output (DO NOT copy this content, only this structure):
+[{"reply":"ok wait so you're telling me you've never had real pizza before??","tip":"Playful disbelief gets them defending themselves immediately","tone":"Funny"},{"reply":"that's actually kind of impressive, what's your go-to order","tip":"Genuine curiosity that moves the conversation forward","tone":"Curious"}]
 
-${modeConfig.instruction}
+The "reply" value is always sendable text — the exact words, nothing else.`;
 
-Return ONLY a JSON array:
-[${toneList}]`;
+  let userContent;
+  if (imageBase64) {
+    userContent = [
+      {
+        type: "image",
+        source: { type: "base64", media_type: imageMediaType || "image/jpeg", data: imageBase64 },
+      },
+      {
+        type: "text",
+        text: `${voiceSection}\n\n${modeConfig.instruction}\n\n${example}\n\nNow return ONLY a JSON array for this conversation:\n[${toneList}]`,
+      },
+    ];
+  } else {
+    const trimmed = ocrText.split("\n").filter(l => l.trim()).slice(-20).join("\n");
+    userContent = `${voiceSection}\n\nConversation:\n${trimmed}\n\n${modeConfig.instruction}\n\n${example}\n\nNow return ONLY a JSON array for this conversation:\n[${toneList}]`;
+  }
 
   let message;
   try {
@@ -137,20 +155,7 @@ Return ONLY a JSON array:
       max_tokens: 600,
       temperature: 0.9,
       system: systemPrompt,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: imageMediaType || "image/jpeg",
-              data: imageBase64,
-            },
-          },
-          { type: "text", text: textContent },
-        ],
-      }],
+      messages: [{ role: "user", content: userContent }],
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: "anthropic_error", detail: err.message }), { status: 500, headers: corsHeaders });
