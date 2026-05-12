@@ -15,10 +15,6 @@ function buildVoiceProfile(rawMessages) {
   return `Voice: ~${avgLen} chars, ${emojiFreq}, ${punctuation}, ${lowercase}. Examples: ${examples}`;
 }
 
-function trimOcr(text) {
-  const lines = text.split("\n").filter((l) => l.trim());
-  return lines.slice(-20).join("\n");
-}
 
 const MODE_CONFIG = {
   reply: {
@@ -75,8 +71,8 @@ export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return new Response(null, { status: 405, headers: corsHeaders });
 
-  const { userId, ocrText, mode } = await req.json();
-  if (!userId || !ocrText) {
+  const { userId, imageBase64, imageMediaType, mode } = await req.json();
+  if (!userId || !imageBase64) {
     return new Response(JSON.stringify({ error: "missing_fields" }), { status: 400, headers: corsHeaders });
   }
 
@@ -111,9 +107,8 @@ export default async function handler(req) {
 Current time: ${now}
 
 Rules:
-- [YOU] = user's messages (study for voice, never reply to)
-- [THEM] = match's messages (reply to the LAST one only)
-- Timestamps in OCR: hours ago→reply naturally, days→briefly acknowledge gap, weeks→re-open cold
+- The screenshot shows a dating app conversation. Right-side bubbles = the user's messages (study for voice, never reply to). Left-side bubbles = the match's messages (reply to the LAST one only).
+- Timestamps visible in the screenshot: hours ago→reply naturally, days→briefly acknowledge gap, weeks→re-open cold
 - Return ONLY valid JSON, no markdown
 - 1-2 sentences max per reply, each tone genuinely distinct
 - Mirror user's voice exactly
@@ -128,10 +123,7 @@ Sound human, not AI:
 
   const toneList = modeConfig.tones.map(t => `{"reply":"...","tip":"...","tone":"${t}"}`).join(",");
 
-  const userMessage = `${voiceSection}
-
-Conversation:
-${trimOcr(ocrText)}
+  const textContent = `${voiceSection}
 
 ${modeConfig.instruction}
 
@@ -145,7 +137,20 @@ Return ONLY a JSON array:
       max_tokens: 600,
       temperature: 0.9,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: imageMediaType || "image/jpeg",
+              data: imageBase64,
+            },
+          },
+          { type: "text", text: textContent },
+        ],
+      }],
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: "anthropic_error", detail: err.message }), { status: 500, headers: corsHeaders });
